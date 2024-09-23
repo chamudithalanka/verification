@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telegram Verification</title>
+    <style>
+        /* CSS same as before */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        input {
+            margin: 10px 0;
+            padding: 8px;
+            width: 80%;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        #errorMessage {
+            color: red;
+        }
+
+        #timer {
+            margin-top: 10px;
+            color: red;
+        }
+    </style>
+    <!-- Add Google reCAPTCHA -->
+    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Telegram Verification</h1>
+        <form id="verificationForm">
+            <label for="telegramId">Enter your Telegram ID or Phone Number:</label>
+            <input type="text" id="telegramId" name="telegramId" required>
+            <div class="g-recaptcha" data-sitekey="6Lc4N0wqAAAAAHVrrao4Nbr3eCz7UCcnBLxS3uwg"></div>
+            <!-- reCAPTCHA will be displayed here -->
+            <button type="submit">Submit</button>
+        </form>
+
+        <div id="codeSection" class="hidden">
+            <label for="verificationCode">Enter the 6-Digit Code sent to your Telegram:</label>
+            <input type="text" id="verificationCode" name="verificationCode" required>
+            <button id="verifyCodeBtn">Verify Code</button>
+        </div>
+
+        <div id="errorMessage" class="hidden">
+            <p>Invalid code or expired. Please try again.</p>
+        </div>
+
+        <div id="timer" class="hidden"></div>
+    </div>
+
+    <script>
+        const botToken = '8173257636:AAEcN2YavHuUc4ht8MY40TeX8oXLH18YfXg';  // Replace with your Telegram Bot Token
+        let generatedCode = '';  // Store the generated code here
+        let codeExpirationTime = 300000; // Code expires in 5 minutes (300000 milliseconds)
+        let requestCooldown = 60000; // 1 minute cooldown between requests
+        let expirationTimeout; // For tracking code expiration
+        let cooldownTimeout; // For tracking rate limiting
+
+        // Form submit event
+        document.getElementById('verificationForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // Check rate limit using localStorage
+            let lastRequestTime = localStorage.getItem('lastRequestTime');
+            let now = new Date().getTime();
+
+            if (lastRequestTime && now - lastRequestTime < requestCooldown) {
+                alert('Please wait a minute before requesting a new code.');
+                return;
+            }
+
+            // Validate reCAPTCHA response
+            let recaptchaResponse = grecaptcha.getResponse();
+            if (!recaptchaResponse) {
+                alert('Please complete the CAPTCHA.');
+                return;
+            }
+
+            const telegramId = document.getElementById('telegramId').value;
+
+            // Generate a random 6-digit code
+            generatedCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+            // Send the 6-digit code to the user via Telegram
+            const telegramApiUrl = `https://api.telegram.org/bot${botToken}/sendMessage`;
+
+            fetch(telegramApiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    chat_id: telegramId,
+                    text: `Your verification code is: ${generatedCode}`
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.ok) {
+                    // Show the code input section
+                    document.getElementById('verificationForm').classList.add('hidden');
+                    document.getElementById('codeSection').classList.remove('hidden');
+                    
+                    // Set last request time for rate limiting
+                    localStorage.setItem('lastRequestTime', now);
+                    
+                    // Start the expiration timer for the code
+                    expirationTimeout = setTimeout(() => {
+                        generatedCode = '';  // Invalidate the code after expiration
+                        document.getElementById('errorMessage').classList.remove('hidden');
+                    }, codeExpirationTime);
+
+                    // Display code expiration countdown
+                    let countdown = codeExpirationTime / 1000;
+                    const timerDisplay = document.getElementById('timer');
+                    timerDisplay.classList.remove('hidden');
+                    const interval = setInterval(() => {
+                        countdown--;
+                        timerDisplay.innerText = `Code expires in ${countdown} seconds`;
+                        if (countdown <= 0) clearInterval(interval);
+                    }, 1000);
+                } else {
+                    alert('Failed to send code. Make sure the Telegram ID is valid.');
+                }
+            });
+        });
+
+        // Handle code verification
+        document.getElementById('verifyCodeBtn').addEventListener('click', function() {
+            const enteredCode = document.getElementById('verificationCode').value;
+
+            if (enteredCode === generatedCode) {
+                // Clear the expiration timeout since the code is correct
+                clearTimeout(expirationTimeout);
+                
+                // Redirect to the final destination if the code is correct
+                window.location.href = 'https://your-destination-site.com';
+            } else {
+                // Show an error message if the code is wrong
+                document.getElementById('errorMessage').classList.remove('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
